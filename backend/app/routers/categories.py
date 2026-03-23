@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -10,8 +10,12 @@ router = APIRouter(prefix="/categories", tags=["categories"])
 
 
 @router.get("", response_model=list[CategoryOut])
-def list_categories(db: Session = Depends(get_db)):
-    return db.query(Category).order_by(Category.name.asc()).all()
+def list_categories(
+    skip: int = 0,
+    limit: int = Query(default=100, le=1000),
+    db: Session = Depends(get_db)
+):
+    return db.query(Category).order_by(Category.name.asc()).offset(skip).limit(limit).all()
 
 
 @router.post("", response_model=CategoryOut)

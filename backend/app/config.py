@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/spending_tracker"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
+    claude_api_key: str = ""
+    claude_model: str = "claude-3-haiku-20240307"
+    ai_provider: str = "openai"  # Options: "openai", "claude"
     cors_origins: str = "http://localhost:3000"
 
 

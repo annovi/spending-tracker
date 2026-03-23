@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -56,7 +58,7 @@ def recategorization_suggestions(
 
     suggestions: list[RecategorizationSuggestion] = []
     for transaction in transactions:
-        predicted_name = suggest_category(transaction.description, category_names)
+        predicted_name = suggest_category(transaction.description, category_names, db)
         if not predicted_name:
             continue
 

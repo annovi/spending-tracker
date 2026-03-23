@@ -4,11 +4,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CategoryBreakdownChart } from "@/components/CategoryBreakdownChart";
 import { CategoryReviewPanel } from "@/components/CategoryReviewPanel";
-import { CSVUpload } from "@/components/CSVUpload";
+import { CSVUploadAdvanced } from "@/components/CSVUploadAdvanced";
 import { ExpenseChart } from "@/components/ExpenseChart";
 import { TransactionTable } from "@/components/TransactionTable";
 import { api } from "@/lib/api";
 import { Category, CategoryBreakdown, MonthlySummary, RecategorizationSuggestion, Transaction } from "@/types";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export default function HomePage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -56,11 +60,27 @@ export default function HomePage() {
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <section className="mb-6 rounded-3xl bg-slate-900 px-6 py-8 text-white shadow-xl">
-        <h1 className="text-3xl font-bold">Spending Tracker</h1>
-        <p className="mt-2 text-slate-300">Track every expense and income, import statements, and keep your data categorized.</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Spending Tracker</h1>
+            <p className="mt-2 text-slate-300">Track every expense and income, import statements, and keep your data categorized.</p>
+          </div>
+          <div className="flex gap-2">
+            <Button asChild variant="secondary">
+              <Link href="/categories">Manage Categories</Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link href="/accounts">Manage Accounts</Link>
+            </Button>
+          </div>
+        </div>
       </section>
 
-      {error ? <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+      {error ? (
+        <Alert className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
 
       <section className="mb-6 grid gap-4 sm:grid-cols-3">
         <MetricCard title="Income" value={totals.income} color="text-emerald-600" />
@@ -69,7 +89,7 @@ export default function HomePage() {
       </section>
 
       <section className="mb-6">
-        <CSVUpload onImported={loadData} />
+        <CSVUploadAdvanced onImported={loadData} />
       </section>
 
       <section className="mb-6 grid gap-6 lg:grid-cols-2">
@@ -83,7 +103,11 @@ export default function HomePage() {
 
       <section>
         {loading ? (
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm">Loading transactions...</div>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm text-slate-600">Loading transactions...</p>
+            </CardContent>
+          </Card>
         ) : (
           <TransactionTable transactions={transactions} categories={categories} onUpdated={loadData} />
         )}
@@ -94,11 +118,15 @@ export default function HomePage() {
 
 function MetricCard({ title, value, color }: { title: string; value: number; color: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-sm text-slate-500">{title}</p>
-      <p className={`mt-1 text-2xl font-semibold ${color}`}>
-        {value.toLocaleString(undefined, { style: "currency", currency: "USD" })}
-      </p>
-    </div>
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium text-slate-500">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className={`text-2xl font-semibold ${color}`}>
+          {value.toLocaleString(undefined, { style: "currency", currency: "USD" })}
+        </p>
+      </CardContent>
+    </Card>
   );
 }

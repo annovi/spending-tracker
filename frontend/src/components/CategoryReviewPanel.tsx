@@ -4,6 +4,22 @@ import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
 import { api } from "@/lib/api";
 import { BulkRecategorizeItem, Category, RecategorizationSuggestion } from "@/types";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface CategoryReviewPanelProps {
   suggestions: RecategorizationSuggestion[];
@@ -79,55 +95,57 @@ export function CategoryReviewPanel({ suggestions, categories, onApplied }: Cate
           <h2 className="text-lg font-semibold text-slate-900">Category Review</h2>
           <p className="mt-1 text-sm text-slate-600">Review AI suggestions and apply corrections in bulk.</p>
         </div>
-        <button
-          type="button"
+        <Button
           onClick={applyAll}
           disabled={loading || !pendingItems.length}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {loading ? "Applying..." : `Apply ${pendingItems.length} Suggestions`}
-        </button>
+        </Button>
       </div>
 
-      <div className="mt-4 overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead>
-            <tr className="text-left text-slate-500">
-              <th className="py-2 pr-4">Date</th>
-              <th className="py-2 pr-4">Description</th>
-              <th className="py-2 pr-4">Current</th>
-              <th className="py-2 pr-4">Suggested</th>
-              <th className="py-2 pr-4">Amount</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
+      <div className="mt-4">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Date</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Current</TableHead>
+              <TableHead>Suggested</TableHead>
+              <TableHead>Amount</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {localSuggestions.map((item) => (
-              <tr key={item.transaction_id}>
-                <td className="py-2 pr-4 text-slate-600">{item.date}</td>
-                <td className="py-2 pr-4 text-slate-700">{item.description}</td>
-                <td className="py-2 pr-4 text-slate-500">{item.current_category_name ?? "Uncategorized"}</td>
-                <td className="py-2 pr-4">
-                  <select
-                    value={item.suggested_category_id}
-                    onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-                      changeSuggestedCategory(item.transaction_id, Number(event.target.value))
+              <TableRow key={item.transaction_id}>
+                <TableCell className="text-slate-600">{item.date}</TableCell>
+                <TableCell className="text-slate-700">{item.description}</TableCell>
+                <TableCell className="text-slate-500">{item.current_category_name ?? "Uncategorized"}</TableCell>
+                <TableCell>
+                  <Select
+                    value={item.suggested_category_id.toString()}
+                    onValueChange={(value) =>
+                      changeSuggestedCategory(item.transaction_id, Number(value))
                     }
-                    className="rounded-md border border-slate-300 px-2 py-1"
                   >
-                    {categoryOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className={`py-2 pr-4 font-medium ${item.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categoryOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id.toString()}>
+                          {option.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+                <TableCell className={`font-medium ${item.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>
                   {Number(item.amount).toLocaleString(undefined, { style: "currency", currency: "USD" })}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {message ? <p className="mt-3 text-sm text-slate-700">{message}</p> : null}
