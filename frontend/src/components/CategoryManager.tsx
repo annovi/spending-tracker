@@ -213,7 +213,7 @@ export function CategoryManager() {
                         className="w-6 h-6 rounded border"
                         style={{ backgroundColor: category.color }}
                       />
-                      <span className="text-sm text-slate-600">{category.color}</span>
+                      <span className="text-sm text-muted-foreground">{category.color}</span>
                     </div>
                   </TableCell>
                   <TableCell>{category.icon || "-"}</TableCell>

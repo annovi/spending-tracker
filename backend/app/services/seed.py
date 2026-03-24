@@ -4,13 +4,24 @@ from ..models import Category
 from ..models.enums import CategoryType
 
 
-DEFAULT_CATEGORIES = [
-    ("Groceries", CategoryType.expense, "#16a34a"),
-    ("Rent", CategoryType.expense, "#2563eb"),
-    ("Shopping", CategoryType.expense, "#9333ea"),
+# Master taxonomy (expense + income) — aligned with finance_google_sheet master_categories
+DEFAULT_CATEGORIES: list[tuple[str, CategoryType, str]] = [
+    ("Housing", CategoryType.expense, "#2563eb"),
+    ("Utilities & Bills", CategoryType.expense, "#ef4444"),
+    ("Insurance", CategoryType.expense, "#6366f1"),
+    ("Food & Groceries", CategoryType.expense, "#16a34a"),
+    ("Health & Medical", CategoryType.expense, "#ec4899"),
+    ("Transportation", CategoryType.expense, "#0ea5e9"),
+    ("Sports & Fitness", CategoryType.expense, "#f97316"),
+    ("Shopping & Clothing", CategoryType.expense, "#9333ea"),
+    ("Shopping & Electronics", CategoryType.expense, "#8b5cf6"),
+    ("Personal Transfers", CategoryType.expense, "#64748b"),
     ("Subscriptions", CategoryType.expense, "#f59e0b"),
-    ("Transport", CategoryType.expense, "#0ea5e9"),
-    ("Utilities", CategoryType.expense, "#ef4444"),
+    ("Entertainment", CategoryType.expense, "#a855f7"),
+    ("Banking & Fees", CategoryType.expense, "#78716c"),
+    ("Taxes", CategoryType.expense, "#dc2626"),
+    ("Work & Business", CategoryType.expense, "#0891b2"),
+    ("Miscellaneous", CategoryType.expense, "#94a3b8"),
     ("Salary", CategoryType.income, "#22c55e"),
     ("Bonus", CategoryType.income, "#10b981"),
 ]

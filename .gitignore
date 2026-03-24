@@ -1,6 +1,8 @@
 # Python
 backend/.venv/
+backend/venv/
 backend/__pycache__/
+backend/test.db
 backend/**/*.pyc
 
 # Node
@@ -8,8 +10,15 @@ frontend/node_modules/
 frontend/.next/
 
 # Env files
+.env
 backend/.env
 frontend/.env
+
+# Google Cloud service account key (Docker Compose default mount path)
+service-account.json
+
+# Editor
+.vscode/
 
 # OS
 .DS_Store

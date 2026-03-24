@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -35,6 +35,7 @@ class TransactionUpdate(BaseModel):
 class TransactionOut(TransactionBase):
     id: int
     import_hash: Optional[str] = None
+    cached_suggested_category_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
 

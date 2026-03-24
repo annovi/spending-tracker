@@ -4,8 +4,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .database import Base, engine
 from .models import Account, Category, CategoryRule, ImportLog, Transaction  # noqa: F401
-from .routers import accounts_router, analytics_router, categories_router, category_rules_router, imports_router, transactions_router
-from .services import seed_default_categories
+from .routers import (
+    accounts_router,
+    analytics_router,
+    categories_router,
+    category_rules_router,
+    google_sheets_router,
+    imports_router,
+    transactions_router,
+)
+from .services import create_default_rules, seed_default_categories
 
 app = FastAPI(title="Spending Tracker API", version="1.0.0")
 
@@ -18,6 +26,7 @@ def on_startup() -> None:
     db = SessionLocal()
     try:
         seed_default_categories(db)
+        create_default_rules(db)
     finally:
         db.close()
 
@@ -41,4 +50,5 @@ app.include_router(category_rules_router)
 app.include_router(accounts_router)
 app.include_router(transactions_router)
 app.include_router(imports_router)
+app.include_router(google_sheets_router)
 app.include_router(analytics_router)

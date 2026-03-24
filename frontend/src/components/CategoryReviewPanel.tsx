@@ -1,8 +1,10 @@
 "use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
+import { SectionPanel } from "@/components/SectionPanel";
 import { api } from "@/lib/api";
+import type { DateRangeParams } from "@/lib/dashboard-period";
 import { BulkRecategorizeItem, Category, RecategorizationSuggestion } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,11 +27,20 @@ interface CategoryReviewPanelProps {
   suggestions: RecategorizationSuggestion[];
   categories: Category[];
   onApplied: () => Promise<void>;
+  dateRange?: DateRangeParams;
+  onSuggestionsChange?: (next: RecategorizationSuggestion[]) => void;
 }
 
-export function CategoryReviewPanel({ suggestions, categories, onApplied }: CategoryReviewPanelProps) {
+export function CategoryReviewPanel({
+  suggestions,
+  categories,
+  onApplied,
+  dateRange,
+  onSuggestionsChange,
+}: CategoryReviewPanelProps) {
   const [localSuggestions, setLocalSuggestions] = useState<RecategorizationSuggestion[]>(suggestions);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -65,44 +76,67 @@ export function CategoryReviewPanel({ suggestions, categories, onApplied }: Cate
     }
   }
 
+  async function refreshSuggestions() {
+    setRefreshing(true);
+    setMessage("");
+    try {
+      const next = await api.listRecategorizationSuggestions(dateRange, true);
+      onSuggestionsChange?.(next);
+      setLocalSuggestions(next);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to refresh suggestions");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   function changeSuggestedCategory(transactionId: number, nextCategoryId: number) {
     setLocalSuggestions((current) =>
       current.map((item) =>
         item.transaction_id === transactionId
           ? {
-            ...item,
-            suggested_category_id: nextCategoryId,
-            suggested_category_name: categoryOptions.find((option) => option.id === nextCategoryId)?.name ?? item.suggested_category_name,
-          }
+              ...item,
+              suggested_category_id: nextCategoryId,
+              suggested_category_name:
+                categoryOptions.find((option) => option.id === nextCategoryId)?.name ??
+                item.suggested_category_name,
+            }
           : item,
       ),
     );
   }
 
+  const refreshButton = (
+    <Button type="button" variant="outline" size="sm" onClick={refreshSuggestions} disabled={refreshing}>
+      {refreshing ? "Refreshing…" : "Refresh (re-run AI / rules)"}
+    </Button>
+  );
+
   if (!localSuggestions.length) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 className="text-lg font-semibold text-slate-900">Category Review</h2>
-        <p className="mt-2 text-sm text-slate-600">No recategorization suggestions right now.</p>
-      </div>
+      <SectionPanel
+        title="Category Review"
+        description="Suggestions are saved in the database after the first load, so the page stays fast. Use refresh only when you want new AI or rule matches."
+        actions={onSuggestionsChange ? refreshButton : undefined}
+      >
+        <p className="mt-2 text-sm text-muted-foreground">No recategorization suggestions right now.</p>
+      </SectionPanel>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">Category Review</h2>
-          <p className="mt-1 text-sm text-slate-600">Review AI suggestions and apply corrections in bulk.</p>
+    <SectionPanel
+      title="Category Review"
+      description="Cached suggestions load instantly. Refresh to re-run AI or rules on unreviewed transactions."
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          {onSuggestionsChange ? refreshButton : null}
+          <Button onClick={applyAll} disabled={loading || !pendingItems.length}>
+            {loading ? "Applying..." : `Apply ${pendingItems.length} Suggestions`}
+          </Button>
         </div>
-        <Button
-          onClick={applyAll}
-          disabled={loading || !pendingItems.length}
-        >
-          {loading ? "Applying..." : `Apply ${pendingItems.length} Suggestions`}
-        </Button>
-      </div>
-
+      }
+    >
       <div className="mt-4">
         <Table>
           <TableHeader>
@@ -117,9 +151,9 @@ export function CategoryReviewPanel({ suggestions, categories, onApplied }: Cate
           <TableBody>
             {localSuggestions.map((item) => (
               <TableRow key={item.transaction_id}>
-                <TableCell className="text-slate-600">{item.date}</TableCell>
-                <TableCell className="text-slate-700">{item.description}</TableCell>
-                <TableCell className="text-slate-500">{item.current_category_name ?? "Uncategorized"}</TableCell>
+                <TableCell className="text-muted-foreground">{item.date}</TableCell>
+                <TableCell className="text-foreground">{item.description}</TableCell>
+                <TableCell className="text-muted-foreground">{item.current_category_name ?? "Uncategorized"}</TableCell>
                 <TableCell>
                   <Select
                     value={item.suggested_category_id.toString()}
@@ -139,8 +173,10 @@ export function CategoryReviewPanel({ suggestions, categories, onApplied }: Cate
                     </SelectContent>
                   </Select>
                 </TableCell>
-                <TableCell className={`font-medium ${item.amount < 0 ? "text-red-600" : "text-emerald-600"}`}>
-                  {Number(item.amount).toLocaleString(undefined, { style: "currency", currency: "USD" })}
+                <TableCell
+                  className={`font-medium ${item.amount < 0 ? "text-red-400" : "text-emerald-400"}`}
+                >
+                  {Number(item.amount).toLocaleString("en-CA", { style: "currency", currency: "CAD" })}
                 </TableCell>
               </TableRow>
             ))}
@@ -148,7 +184,7 @@ export function CategoryReviewPanel({ suggestions, categories, onApplied }: Cate
         </Table>
       </div>
 
-      {message ? <p className="mt-3 text-sm text-slate-700">{message}</p> : null}
-    </div>
+      {message ? <p className="mt-3 text-sm text-muted-foreground">{message}</p> : null}
+    </SectionPanel>
   );
 }

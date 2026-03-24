@@ -2,6 +2,7 @@
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
+import { SectionPanel } from "@/components/SectionPanel";
 import { MonthlySummary } from "@/types";
 
 interface ExpenseChartProps {
@@ -10,20 +11,26 @@ interface ExpenseChartProps {
 
 export function ExpenseChart({ data }: ExpenseChartProps) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-lg font-semibold text-slate-900">Monthly Trend</h2>
+    <SectionPanel title="Monthly Trend">
       <div className="mt-4 h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" />
-            <YAxis />
-            <Tooltip />
-            <Bar dataKey="income" fill="#22c55e" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="expense" fill="#ef4444" radius={[4, 4, 0, 0]} />
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 33% 18%)" />
+            <XAxis dataKey="month" stroke="hsl(215 20% 55%)" tick={{ fill: "hsl(215 20% 55%)" }} />
+            <YAxis stroke="hsl(215 20% 55%)" tick={{ fill: "hsl(215 20% 55%)" }} />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "hsl(222 40% 10%)",
+                border: "1px solid hsl(217 33% 18%)",
+                borderRadius: "0.5rem",
+                color: "hsl(210 40% 96%)",
+              }}
+            />
+            <Bar dataKey="income" fill="#34d399" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="expense" fill="#f87171" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </SectionPanel>
   );
 }

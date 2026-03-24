@@ -18,6 +18,10 @@ class Transaction(Base):
     display_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
+    cached_suggested_category_id: Mapped[int | None] = mapped_column(
+        ForeignKey("categories.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_reviewed: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -26,5 +30,6 @@ class Transaction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    category = relationship("Category", back_populates="transactions")
+    category = relationship("Category", back_populates="transactions", foreign_keys=[category_id])
+    suggested_category = relationship("Category", foreign_keys=[cached_suggested_category_id])
     account = relationship("Account", back_populates="transactions")

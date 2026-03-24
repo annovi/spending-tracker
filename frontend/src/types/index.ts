@@ -21,6 +21,8 @@ export interface Transaction {
   display_name?: string | null;
   amount: number;
   category_id?: number | null;
+  /** Persisted rules/AI suggestion for review; avoids re-calling AI on every page load. */
+  cached_suggested_category_id?: number | null;
   account_id?: number | null;
   notes?: string | null;
   is_reviewed: boolean;

@@ -1,5 +1,6 @@
-from .categorizer import suggest_category, create_default_rules
-from .csv_parser_v2 import parse_transactions_csv_with_mapping, detect_columns, ColumnMapping
+from ..schemas.csv_import import ColumnMapping
+from .categorizer import create_default_rules, suggest_category
+from .csv_parser_v2 import parse_transactions_csv_with_mapping, detect_columns
 from .seed import seed_default_categories
 
 __all__ = [

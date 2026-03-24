@@ -1,20 +1,22 @@
-import pytest
+import os
+
+# Force SQLite before importing the app so tests never require PostgreSQL.
+os.environ["DATABASE_URL"] = "sqlite:///./test.db"
+
 import asyncio
 from datetime import date
 from decimal import Decimal
-from typing import Generator, AsyncGenerator
+from typing import Generator
+
+import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from fastapi.testclient import TestClient
 
+from app.database import Base, get_db
 from app.main import app
-from app.database import get_db, Base
 from app.models import Account, Category, Transaction
-from app.services.csv_parser import parse_transactions_csv
-from app.services.csv_parser_v2 import parse_transactions_csv_with_mapping, ColumnMapping
 
-
-# Test database URL
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 
 engine = create_engine(
@@ -46,12 +48,13 @@ def db_session() -> Generator:
 @pytest.fixture(scope="function")
 def client(db_session) -> Generator:
     """Create a test client with the test database."""
+
     def override_get_db():
         try:
             yield db_session
         finally:
             pass
-    
+
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
         yield test_client
@@ -64,7 +67,7 @@ def sample_category(db_session) -> Category:
     category = Category(
         name="Test Category",
         type="expense",
-        color="#ff0000"
+        color="#ff0000",
     )
     db_session.add(category)
     db_session.commit()
@@ -77,7 +80,7 @@ def sample_account(db_session) -> Account:
     """Create a sample account for testing."""
     account = Account(
         name="Test Bank Account",
-        type="bank"
+        type="bank",
     )
     db_session.add(account)
     db_session.commit()
@@ -97,7 +100,7 @@ def sample_transactions(db_session, sample_category, sample_account) -> list[Tra
             account_id=sample_account.id,
             source="test",
             import_hash="hash1",
-            is_reviewed=False
+            is_reviewed=False,
         ),
         Transaction(
             date=date(2024, 1, 2),
@@ -107,13 +110,13 @@ def sample_transactions(db_session, sample_category, sample_account) -> list[Tra
             account_id=sample_account.id,
             source="test",
             import_hash="hash2",
-            is_reviewed=True
-        )
+            is_reviewed=True,
+        ),
     ]
-    
+
     for transaction in transactions:
         db_session.add(transaction)
-    
+
     db_session.commit()
     return transactions
 
@@ -126,7 +129,7 @@ def sample_csv_data() -> bytes:
 2024-01-02,Grocery Store,-125.30
 2024-01-03,Salary,2000.00
 """
-    return csv_content.encode('utf-8')
+    return csv_content.encode("utf-8")
 
 
 @pytest.fixture
@@ -137,4 +140,4 @@ def sample_csv_with_debit_credit() -> bytes:
 2024-01-02,Grocery Store,125.30,
 2024-01-03,Salary,,2000.00
 """
-    return csv_content.encode('utf-8')
+    return csv_content.encode("utf-8")

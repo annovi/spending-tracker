@@ -2,7 +2,8 @@
 
 import { ChangeEvent, useEffect, useState } from "react";
 
-import { api } from "@/lib/api";
+import { AccountSelect } from "@/components/AccountSelect";
+import { api, formatImportResult, type CsvColumnMapping, type CsvPreviewResponse } from "@/lib/api";
 import { Account } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,33 +30,41 @@ interface CSVUploadProps {
   onImported: () => Promise<void>;
 }
 
-interface ColumnMapping {
-  date?: string;
-  description?: string;
-  amount?: string;
-  debit?: string;
-  credit?: string;
-}
-
-interface CsvPreview {
-  columns: string[];
-  sample_rows: Record<string, string>[];
-  detected_mapping?: ColumnMapping;
-}
-
 export function CSVUploadAdvanced({ onImported }: CSVUploadProps) {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string>("");
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccountId, setSelectedAccountId] = useState<number | undefined>();
+  const [bankFormat, setBankFormat] = useState<string>("auto");
   const [showMapping, setShowMapping] = useState(false);
-  const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
-  const [columnMapping, setColumnMapping] = useState<ColumnMapping>({});
+  const [csvPreview, setCsvPreview] = useState<CsvPreviewResponse | null>(null);
+  const [columnMapping, setColumnMapping] = useState<CsvColumnMapping>({});
+  const [bankOptions, setBankOptions] = useState<{ id: string; label: string }[]>([
+    { id: "auto", label: "Auto-detect columns" },
+  ]);
 
   useEffect(() => {
     api.listAccounts().then(setAccounts).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    api
+      .listBankPresets()
+      .then((r) => {
+        setBankOptions([{ id: "auto", label: "Auto-detect columns" }, ...r.presets]);
+      })
+      .catch(console.error);
+  }, []);
+
+  const handleBankFormatChange = (value: string) => {
+    setBankFormat(value);
+    setFile(null);
+    setShowMapping(false);
+    setCsvPreview(null);
+    setColumnMapping({});
+    setMessage("");
+  };
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -67,18 +76,36 @@ export function CSVUploadAdvanced({ onImported }: CSVUploadProps) {
     setCsvPreview(null);
     setColumnMapping({});
 
-    // Preview the CSV
+    if (bankFormat !== "auto") {
+      setLoading(true);
+      try {
+        const result = await api.uploadCsvWithBankPreset(
+          selectedFile,
+          bankFormat,
+          selectedAccountId
+        );
+        setMessage(formatImportResult(result));
+        await onImported();
+        setFile(null);
+        event.target.value = "";
+      } catch (error) {
+        const messageText = error instanceof Error ? error.message : "Import failed";
+        setMessage(messageText);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       setLoading(true);
       const preview = await api.previewCsv(selectedFile);
       setCsvPreview(preview);
 
-      // Use detected mapping if available
       if (preview.detected_mapping) {
         setColumnMapping(preview.detected_mapping);
       }
 
-      // Show mapping interface if columns are detected
       setShowMapping(true);
     } catch (error) {
       const messageText = error instanceof Error ? error.message : "Preview failed";
@@ -101,7 +128,7 @@ export function CSVUploadAdvanced({ onImported }: CSVUploadProps) {
         columnMapping as Record<string, string>,
         selectedAccountId
       );
-      setMessage(`Imported ${result.rows_imported} rows, skipped ${result.duplicates_skipped} duplicates.`);
+      setMessage(formatImportResult(result));
       await onImported();
       setFile(null);
       setShowMapping(false);
@@ -123,7 +150,7 @@ export function CSVUploadAdvanced({ onImported }: CSVUploadProps) {
 
     try {
       const result = await api.uploadCsv(file, selectedAccountId);
-      setMessage(`Imported ${result.rows_imported} rows, skipped ${result.duplicates_skipped} duplicates.`);
+      setMessage(formatImportResult(result));
       await onImported();
       setFile(null);
       setShowMapping(false);
@@ -154,8 +181,24 @@ export function CSVUploadAdvanced({ onImported }: CSVUploadProps) {
           <CardDescription>Upload bank or credit card CSV to merge transactions.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="grid gap-2 max-w-md">
+            <Label>Bank CSV format</Label>
+            <Select value={bankFormat} onValueChange={handleBankFormatChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose format" />
+              </SelectTrigger>
+              <SelectContent>
+                {bankOptions.map((opt) => (
+                  <SelectItem key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex flex-wrap items-end gap-3">
             <div>
+              <Label className="sr-only">CSV file</Label>
               <Input
                 type="file"
                 accept=".csv"
@@ -163,25 +206,13 @@ export function CSVUploadAdvanced({ onImported }: CSVUploadProps) {
                 className="w-fit"
               />
             </div>
-            <div>
-              <Select
-                value={selectedAccountId?.toString() ?? "no-account"}
-                onValueChange={(value) => setSelectedAccountId(value && value !== "no-account" ? Number(value) : undefined)}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Select account (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="no-account">No account</SelectItem>
-                  {accounts.map((account) => (
-                    <SelectItem key={account.id} value={account.id.toString()}>
-                      {account.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {file && !showMapping && (
+            <AccountSelect
+              accounts={accounts}
+              value={selectedAccountId}
+              onChange={setSelectedAccountId}
+              triggerClassName="w-[200px]"
+            />
+            {bankFormat === "auto" && file && !showMapping && (
               <Button onClick={handleQuickImport} disabled={loading}>
                 {loading ? "Importing..." : "Quick Import"}
               </Button>

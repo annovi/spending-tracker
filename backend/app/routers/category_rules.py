@@ -10,7 +10,7 @@ from ..schemas import CategoryRuleCreate, CategoryRuleResponse, CategoryRuleUpda
 router = APIRouter(prefix="/category-rules", tags=["category-rules"])
 
 
-@router.get("/", response_model=List[CategoryRuleResponse])
+@router.get("", response_model=List[CategoryRuleResponse])
 def list_category_rules(
     skip: int = 0,
     limit: int = Query(default=100, le=1000),
@@ -21,7 +21,7 @@ def list_category_rules(
     return rules
 
 
-@router.post("/", response_model=CategoryRuleResponse)
+@router.post("", response_model=CategoryRuleResponse)
 def create_category_rule(rule: CategoryRuleCreate, db: Session = Depends(get_db)):
     """Create a new category rule."""
     db_rule = CategoryRule(**rule.model_dump())
@@ -31,7 +31,7 @@ def create_category_rule(rule: CategoryRuleCreate, db: Session = Depends(get_db)
     return db_rule
 
 
-@router.put("/{rule_id}", response_model=CategoryRuleResponse)
+@router.patch("/{rule_id}", response_model=CategoryRuleResponse)
 def update_category_rule(rule_id: int, rule: CategoryRuleUpdate, db: Session = Depends(get_db)):
     """Update a category rule."""
     db_rule = db.query(CategoryRule).filter(CategoryRule.id == rule_id).first()

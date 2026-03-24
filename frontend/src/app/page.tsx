@@ -4,24 +4,34 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CategoryBreakdownChart } from "@/components/CategoryBreakdownChart";
 import { CategoryReviewPanel } from "@/components/CategoryReviewPanel";
-import { CSVUploadAdvanced } from "@/components/CSVUploadAdvanced";
+import { DashboardPeriodFilter } from "@/components/DashboardPeriodFilter";
 import { ExpenseChart } from "@/components/ExpenseChart";
 import { TransactionTable } from "@/components/TransactionTable";
 import { api } from "@/lib/api";
-import { Category, CategoryBreakdown, MonthlySummary, RecategorizationSuggestion, Transaction } from "@/types";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { dateRangeFromYearMonth } from "@/lib/dashboard-period";
+import {
+  Account,
+  Category,
+  CategoryBreakdown,
+  MonthlySummary,
+  RecategorizationSuggestion,
+  Transaction,
+} from "@/types";
+import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-
 export default function HomePage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [summary, setSummary] = useState<MonthlySummary[]>([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState<CategoryBreakdown[]>([]);
   const [reviewSuggestions, setReviewSuggestions] = useState<RecategorizationSuggestion[]>([]);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [yearFilter, setYearFilter] = useState("");
+  const [monthFilter, setMonthFilter] = useState("");
+
+  const dateRange = useMemo(() => dateRangeFromYearMonth(yearFilter, monthFilter), [yearFilter, monthFilter]);
 
   const totals = useMemo(() => {
     const income = transactions.filter((t) => Number(t.amount) > 0).reduce((acc, t) => acc + Number(t.amount), 0);
@@ -33,15 +43,17 @@ export default function HomePage() {
     setLoading(true);
     setError("");
     try {
-      const [tx, cats, monthly, breakdown, suggestions] = await Promise.all([
-        api.listTransactions(),
+      const [tx, cats, accs, monthly, breakdown, suggestions] = await Promise.all([
+        api.listTransactions({ limit: 1000, dateRange }),
         api.listCategories(),
-        api.listMonthlySummary(),
-        api.listCategoryBreakdown(),
-        api.listRecategorizationSuggestions(),
+        api.listAccounts(),
+        api.listMonthlySummary(dateRange),
+        api.listCategoryBreakdown(dateRange),
+        api.listRecategorizationSuggestions(dateRange),
       ]);
       setTransactions(tx);
       setCategories(cats);
+      setAccounts(accs);
       setSummary(monthly);
       setCategoryBreakdown(breakdown.map((item) => ({ ...item, total: Math.abs(Number(item.total)) })));
       setReviewSuggestions(suggestions);
@@ -51,7 +63,7 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [dateRange]);
 
   useEffect(() => {
     void loadData();
@@ -59,21 +71,21 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <section className="mb-6 rounded-3xl bg-slate-900 px-6 py-8 text-white shadow-xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Spending Tracker</h1>
-            <p className="mt-2 text-slate-300">Track every expense and income, import statements, and keep your data categorized.</p>
-          </div>
-          <div className="flex gap-2">
-            <Button asChild variant="secondary">
-              <Link href="/categories">Manage Categories</Link>
-            </Button>
-            <Button asChild variant="secondary">
-              <Link href="/accounts">Manage Accounts</Link>
-            </Button>
-          </div>
-        </div>
+      <section className="mb-8 rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/15 via-card to-card px-6 py-8 shadow-xl">
+        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+        <p className="mt-2 text-muted-foreground">
+          Track expenses and income, review categories, and explore trends. Use Import or Export in the top menu for
+          data transfer.
+        </p>
+      </section>
+
+      <section className="mb-8">
+        <DashboardPeriodFilter
+          year={yearFilter}
+          month={monthFilter}
+          onYearChange={setYearFilter}
+          onMonthChange={setMonthFilter}
+        />
       </section>
 
       {error ? (
@@ -82,49 +94,49 @@ export default function HomePage() {
         </Alert>
       ) : null}
 
-      <section className="mb-6 grid gap-4 sm:grid-cols-3">
-        <MetricCard title="Income" value={totals.income} color="text-emerald-600" />
-        <MetricCard title="Expenses" value={totals.expense} color="text-red-600" />
-        <MetricCard title="Net" value={totals.net} color={totals.net >= 0 ? "text-emerald-600" : "text-red-600"} />
+      <section className="mb-8 grid gap-4 sm:grid-cols-3">
+        <MetricCard title="Income" value={totals.income} accent="text-emerald-400" glow="shadow-emerald-500/10" />
+        <MetricCard title="Expenses" value={totals.expense} accent="text-red-400" glow="shadow-red-500/10" />
+        <MetricCard title="Net" value={totals.net} accent={totals.net >= 0 ? "text-emerald-400" : "text-red-400"} glow={totals.net >= 0 ? "shadow-emerald-500/10" : "shadow-red-500/10"} />
       </section>
 
-      <section className="mb-6">
-        <CSVUploadAdvanced onImported={loadData} />
-      </section>
-
-      <section className="mb-6 grid gap-6 lg:grid-cols-2">
+      <section className="mb-8 grid gap-6 lg:grid-cols-2">
         <ExpenseChart data={summary} />
         <CategoryBreakdownChart data={categoryBreakdown} />
       </section>
 
-      <section className="mb-6">
-        <CategoryReviewPanel suggestions={reviewSuggestions} categories={categories} onApplied={loadData} />
+      <section className="mb-8">
+        <CategoryReviewPanel
+          suggestions={reviewSuggestions}
+          categories={categories}
+          onApplied={loadData}
+          dateRange={dateRange}
+          onSuggestionsChange={setReviewSuggestions}
+        />
       </section>
 
       <section>
         {loading ? (
           <Card>
             <CardContent className="p-4">
-              <p className="text-sm text-slate-600">Loading transactions...</p>
+              <p className="text-sm text-muted-foreground">Loading transactions...</p>
             </CardContent>
           </Card>
         ) : (
-          <TransactionTable transactions={transactions} categories={categories} onUpdated={loadData} />
+          <TransactionTable transactions={transactions} categories={categories} accounts={accounts} onUpdated={loadData} />
         )}
       </section>
     </main>
   );
 }
 
-function MetricCard({ title, value, color }: { title: string; value: number; color: string }) {
+function MetricCard({ title, value, accent, glow }: { title: string; value: number; accent: string; glow: string }) {
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-slate-500">{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className={`text-2xl font-semibold ${color}`}>
-          {value.toLocaleString(undefined, { style: "currency", currency: "USD" })}
+    <Card className={`border-border/60 bg-card/80 backdrop-blur-sm shadow-lg ${glow}`}>
+      <CardContent className="pt-5 pb-5">
+        <p className="text-sm font-medium text-muted-foreground">{title}</p>
+        <p className={`mt-1 text-2xl font-semibold ${accent}`}>
+          {value.toLocaleString("en-CA", { style: "currency", currency: "CAD" })}
         </p>
       </CardContent>
     </Card>

@@ -16,4 +16,4 @@ class Category(Base):
     color: Mapped[str] = mapped_column(String(7), default="#64748b")
     icon: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    transactions = relationship("Transaction", back_populates="category")
+    transactions = relationship("Transaction", back_populates="category", foreign_keys="Transaction.category_id")

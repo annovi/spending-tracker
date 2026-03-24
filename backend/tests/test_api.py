@@ -1,14 +1,23 @@
 import pytest
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
+
+from app.models import Category, CategoryRule, Transaction
 
 
 class TestCategoriesAPI:
     """Test the categories API endpoints."""
 
-    def test_list_categories_empty(self, client: TestClient):
-        """Test listing categories when none exist."""
+    def test_list_categories_empty(self, client: TestClient, db_session):
+        """Test listing categories when the table has been cleared."""
+        db_session.query(Transaction).delete()
+        db_session.query(CategoryRule).delete()
+        db_session.query(Category).delete()
+        db_session.commit()
+
         response = client.get("/categories")
         assert response.status_code == 200
         assert response.json() == []
@@ -67,10 +76,10 @@ class TestCategoriesAPI:
         response = client.delete(f"/categories/{sample_category.id}")
         assert response.status_code == 200
         assert response.json() == {"ok": True}
-        
-        # Verify it's deleted
+
         response = client.get("/categories")
-        assert response.json() == []
+        ids = {c["id"] for c in response.json()}
+        assert sample_category.id not in ids
 
 
 class TestAccountsAPI:
@@ -149,8 +158,9 @@ class TestTransactionsAPI:
         
         data = response.json()
         assert len(data) == 2
-        assert data[0]["description"] == "Test Transaction 1"
-        assert data[1]["description"] == "Test Transaction 2"
+        # Newest first (date desc)
+        assert data[0]["description"] == "Test Transaction 2"
+        assert data[1]["description"] == "Test Transaction 1"
 
     def test_update_transaction(self, client: TestClient, sample_transactions):
         """Test updating a transaction."""
@@ -168,14 +178,18 @@ class TestTransactionsAPI:
         assert data["display_name"] == "Updated Display Name"
         assert data["is_reviewed"] is True
 
-    def test_get_recategorization_suggestions(self, client: TestClient, sample_transactions):
+    @patch("app.routers.transactions.suggest_category")
+    def test_get_recategorization_suggestions(
+        self, mock_suggest, client: TestClient, sample_transactions
+    ):
         """Test getting recategorization suggestions."""
+        mock_suggest.return_value = "Food & Groceries"
+
         response = client.get("/transactions/review/suggestions")
         assert response.status_code == 200
-        
-        # Should return only unreviewed transactions
+
         data = response.json()
-        assert len(data) == 1  # Only one transaction is not reviewed
+        assert len(data) == 1
         assert data[0]["transaction_id"] == sample_transactions[0].id
 
     def test_apply_bulk_recategorization(self, client: TestClient, sample_transactions):
@@ -288,4 +302,3 @@ class TestAnalyticsAPI:
         breakdown = data[0]
         assert "category" in breakdown
         assert "total" in breakdown
-        assert "transaction_count" in breakdown

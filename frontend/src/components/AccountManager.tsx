@@ -214,7 +214,7 @@ export function AccountManager() {
             </TableBody>
           </Table>
           {accounts.length === 0 && (
-            <div className="text-center py-8 text-slate-500">
+            <div className="text-center py-8 text-muted-foreground">
               No accounts yet. Create your first account to start tracking transactions.
             </div>
           )}

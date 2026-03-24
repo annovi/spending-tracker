@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import csv
 import re
+from pathlib import Path
 from typing import List
 
 from anthropic import Anthropic
@@ -12,28 +14,46 @@ from ..models.category import Category
 from ..models.category_rule import CategoryRule
 
 
+def match_category_rules(
+    description: str,
+    category_names: List[str],
+    rules: List[CategoryRule],
+    category_name_by_id: dict[int, str],
+) -> str | None:
+    """In-memory rule match; no DB or AI. `category_name_by_id` maps category id -> name."""
+    valid = set(category_names)
+    lowered_desc = description.lower()
+    for rule in rules:
+        try:
+            if re.search(rule.pattern, lowered_desc, re.IGNORECASE):
+                name = category_name_by_id.get(rule.category_id)
+                if name and name in valid:
+                    return name
+        except re.error:
+            if rule.pattern.lower() in lowered_desc:
+                name = category_name_by_id.get(rule.category_id)
+                if name and name in valid:
+                    return name
+    return None
+
+
+def build_categorization_prompt(description: str, category_names: List[str]) -> str:
+    return (
+        "You are categorizing personal finance transactions. "
+        f"Choose exactly one category from this list: {', '.join(category_names)}. "
+        f"Transaction description: '{description}'. "
+        "Return only the category name."
+    )
+
+
 def suggest_category(description: str, category_names: List[str], db: Session) -> str | None:
     """Suggest a category for a transaction description using rules and AI."""
-    
-    # First, try to match against database rules
     rules = db.query(CategoryRule).order_by(CategoryRule.priority.desc()).all()
-    lowered_desc = description.lower()
-    
-    for rule in rules:
-        # Support both exact string match and regex
-        try:
-            # Try regex first
-            if re.search(rule.pattern, lowered_desc, re.IGNORECASE):
-                category = db.query(Category).filter(Category.id == rule.category_id).first()
-                if category and category.name in category_names:
-                    return category.name
-        except re.error:
-            # If regex is invalid, fall back to simple string match
-            if rule.pattern.lower() in lowered_desc:
-                category = db.query(Category).filter(Category.id == rule.category_id).first()
-                if category and category.name in category_names:
-                    return category.name
-    
+    category_name_by_id = {c.id: c.name for c in db.query(Category).all()}
+    hit = match_category_rules(description, category_names, rules, category_name_by_id)
+    if hit:
+        return hit
+
     # If no rule matches and AI is configured, try AI categorization
     if settings.ai_provider == "openai" and settings.openai_api_key:
         return _categorize_with_openai(description, category_names)
@@ -47,12 +67,7 @@ def _categorize_with_openai(description: str, category_names: List[str]) -> str 
     """Categorize using OpenAI API."""
     try:
         client = OpenAI(api_key=settings.openai_api_key)
-        prompt = (
-            "You are categorizing personal finance transactions. "
-            f"Choose exactly one category from this list: {', '.join(category_names)}. "
-            f"Transaction description: '{description}'. "
-            "Return only the category name."
-        )
+        prompt = build_categorization_prompt(description, category_names)
         completion = client.chat.completions.create(
             model=settings.openai_model,
             messages=[
@@ -71,12 +86,7 @@ def _categorize_with_claude(description: str, category_names: List[str]) -> str 
     """Categorize using Claude API."""
     try:
         client = Anthropic(api_key=settings.claude_api_key)
-        prompt = (
-            "You are categorizing personal finance transactions. "
-            f"Choose exactly one category from this list: {', '.join(category_names)}. "
-            f"Transaction description: '{description}'. "
-            "Return only the category name."
-        )
+        prompt = build_categorization_prompt(description, category_names)
         message = client.messages.create(
             model=settings.claude_model,
             max_tokens=100,
@@ -92,76 +102,46 @@ def _categorize_with_claude(description: str, category_names: List[str]) -> str 
         return None
 
 
+def _master_category_csv_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "data" / "master_category.csv"
+
+
 def create_default_rules(db: Session) -> None:
-    """Create default category rules if none exist."""
+    """Create default category rules from master_category.csv if none exist."""
     if db.query(CategoryRule).count() > 0:
         return
-    
-    # Get default categories
+
     categories = {cat.name: cat for cat in db.query(Category).all()}
-    
-    default_rules = [
-        # Income rules
-        (r"salary|payroll|paycheck", "Salary", 10),
-        (r"deposit|direct deposit", "Salary", 5),
-        
-        # Shopping rules
-        (r"amazon|amzn", "Shopping", 10),
-        (r"walmart|target", "Shopping", 10),
-        (r"costco|sam's club", "Shopping", 10),
-        (r"etsy|ebay", "Shopping", 10),
-        
-        # Groceries rules
-        (r"whole foods|wholefoods", "Groceries", 10),
-        (r"trader joe|traderjoe", "Groceries", 10),
-        (r"safeway|kroger|albertsons", "Groceries", 10),
-        (r"publix|food lion", "Groceries", 10),
-        
-        # Subscription rules
-        (r"netflix", "Subscriptions", 10),
-        (r"spotify", "Subscriptions", 10),
-        (r"apple\.com\b.*subscription", "Subscriptions", 10),
-        (r"disney\+", "Subscriptions", 10),
-        (r"hulu", "Subscriptions", 10),
-        (r"youtube premium", "Subscriptions", 10),
-        
-        # Transport rules
-        (r"uber|lyft", "Transport", 10),
-        (r"gas station|chevron|shell|exxon", "Transport", 10),
-        (r"parking", "Transport", 10),
-        (r"metro|subway|bus", "Transport", 10),
-        
-        # Rent/Utilities
-        (r"rent|lease", "Rent", 10),
-        (r"electric|electricity|utility", "Utilities", 10),
-        (r"water|sewer", "Utilities", 10),
-        (r"gas bill|natural gas", "Utilities", 10),
-        (r"internet|wifi|broadband", "Utilities", 10),
-        
-        # Dining rules
-        (r"starbucks", "Dining", 10),
-        (r"mcdonald|burger king|wendy", "Dining", 10),
-        (r"restaurant|dinner|lunch", "Dining", 5),
-        (r"doordash|uber eats|grubhub", "Dining", 10),
-        
-        # Healthcare rules
-        (r"pharmacy|cv|walgreens", "Healthcare", 10),
-        (r"doctor|medical|clinic", "Healthcare", 10),
-        (r"dental|dentist", "Healthcare", 10),
-        
-        # Entertainment rules
-        (r"movie|cinema|theater", "Entertainment", 10),
-        (r"concert|show", "Entertainment", 10),
-        (r"game|steam|playstation", "Entertainment", 10),
-    ]
-    
-    for pattern, category_name, priority in default_rules:
-        if category_name in categories:
-            rule = CategoryRule(
-                pattern=pattern,
-                category_id=categories[category_name].id,
-                priority=priority
+    csv_path = _master_category_csv_path()
+    if not csv_path.is_file():
+        return
+
+    seen: set[tuple[str, int]] = set()
+    with csv_path.open(newline="", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        for row in reader:
+            if len(row) < 2:
+                continue
+            raw_label = row[0].strip()
+            category_name = row[1].strip()
+            if not raw_label or not category_name:
+                continue
+            cat = categories.get(category_name)
+            if not cat:
+                continue
+            # Substring match on transaction description (case-insensitive)
+            pattern = re.escape(raw_label)
+            key = (pattern.lower(), cat.id)
+            if key in seen:
+                continue
+            seen.add(key)
+            priority = min(len(raw_label) + 10, 250)
+            db.add(
+                CategoryRule(
+                    pattern=pattern,
+                    category_id=cat.id,
+                    priority=priority,
+                )
             )
-            db.add(rule)
-    
+
     db.commit()
